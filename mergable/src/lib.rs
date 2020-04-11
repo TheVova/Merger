@@ -17,7 +17,7 @@ macro_rules! impl_primitive {
     };
 }
 
-impl_primitive!(u8, i8, u16, i16, u32, i32, u64, i64, f32, f64, bool);
+impl_primitive!(u8, i8, u16, i16, u32, i32, u64, i64, f32, f64, bool, isize, usize);
 
 // recurse into the 'T' in option and merge that, if available.
 // is self is none clone the other.
