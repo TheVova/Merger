@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "mergable",
+    "merge_derive",
+]

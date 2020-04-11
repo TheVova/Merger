@@ -1,0 +1,13 @@
+[package]
+name = "merge_derive"
+version = "0.1.0"
+authors = ["vova"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1.0.2"
+syn = {version="1.0.16",features=["full"]}
+proc-macro2 = "1.0.9"

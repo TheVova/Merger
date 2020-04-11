@@ -1,0 +1,8 @@
+[package]
+name = "mergeable"
+version = "0.1.0"
+authors = ["vova"]
+edition = "2018"
+
+[dependencies]
+merge_derive = {path = "../merge_derive"}
