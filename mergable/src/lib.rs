@@ -3,29 +3,38 @@
 #[cfg(any(feature = "std", test))]
 #[macro_use]
 extern crate std;
+
 #[cfg(any(feature = "std", test))]
 use std::{
-    hash::Hash,
+    boxed::Box,
     collections::BTreeMap,
-    vec::{self, Vec},
+    hash::Hash,
     string::String,
-    boxed::Box
+    vec::{self, Vec},
 };
 
-#[cfg(not(any(feature = "std",test)))]
+#[cfg(not(any(feature = "std", test)))]
 #[macro_use]
 extern crate alloc;
-#[cfg(not(any(feature = "std",test)))]
+
+#[cfg(not(any(feature = "std", test)))]
 use alloc::{
+    boxed::Box,
     collections::BTreeMap,
-    vec::{self, Vec},
     string::String,
-    boxed::Box
+    vec::{self, Vec},
 };
 
 pub use merge_derive::MergeFrom;
-pub trait MergeFrom {
-    fn merge_from(&mut self, other: &Self);
+
+pub trait MergeFrom<Rhs = Self>
+where
+    Rhs: ?Sized,
+{
+    fn merge_from(&mut self, other: &Rhs);
+    fn merge_with(&mut self, other: &Rhs, mut f: impl FnMut(&mut Self, &Rhs)) {
+        f(self, other);
+    }
 }
 
 // all primitive scalar types just get replaced with the latter value
@@ -57,24 +66,57 @@ impl<T: MergeFrom + Clone> MergeFrom for Option<T> {
     }
 }
 
+// recurse into the 'T' in option and merge that, if available.
+// is self is none clone the other.
+impl<T: MergeFrom + Clone> MergeFrom<T> for Option<T> {
+    fn merge_from(&mut self, other: &T) {
+        match self {
+            Some(r) => MergeFrom::merge_from(r, &other),
+            None => {
+                self.replace(other.clone());
+            }
+        }
+    }
+}
+
 //vecs append
-impl<T: Clone> MergeFrom for Vec<T> {
-    fn merge_from(&mut self, other: &Self) {
-        self.extend_from_slice(other);
+impl<T, S> MergeFrom<S> for Vec<T>
+where
+    S: AsRef<[T]>,
+    T: Clone,
+{
+    fn merge_from(&mut self, other: &S) {
+        self.extend_from_slice(other.as_ref());
     }
 }
 
 //strings also append
-impl MergeFrom for String {
-    fn merge_from(&mut self, other: &Self) {
-        self.push_str(other)
+impl<S: AsRef<str>> MergeFrom<S> for String {
+    fn merge_from(&mut self, other: &S) {
+        self.push_str(other.as_ref())
     }
 }
 
 //boxes merge the internal 'T'
-impl<T: Clone + MergeFrom> MergeFrom for Box<T> {
+impl<T: MergeFrom> MergeFrom for Box<T> {
     fn merge_from(&mut self, other: &Self) {
         MergeFrom::merge_from(self.as_mut(), other.as_ref());
+    }
+}
+
+//boxes merge the internal 'T'
+impl<T: MergeFrom> MergeFrom<T> for Box<T> {
+    fn merge_from(&mut self, other: &T) {
+        MergeFrom::merge_from(self.as_mut(), other);
+    }
+}
+
+// hashmaps add keys and values from 'other'. if key exists in both, runs merge on the value.
+impl<K: Eq + Ord + Clone, V: MergeFrom + Clone> MergeFrom<(K,V)> for BTreeMap<K, V> {
+    fn merge_from(&mut self, (k,v): &(K,V)) {
+            self.entry(k.clone())
+                .and_modify(|f| MergeFrom::merge_from(f, v))
+                .or_insert(v.clone());
     }
 }
 
@@ -90,7 +132,7 @@ impl<K: Eq + Ord + Clone, V: MergeFrom + Clone> MergeFrom for BTreeMap<K, V> {
 }
 
 #[cfg(feature = "std")]
-impl<K: Eq + Hash+ Clone, V: MergeFrom + Clone> MergeFrom for ::std::collections::HashMap<K, V> {
+impl<K: Eq + Hash + Clone, V: MergeFrom + Clone> MergeFrom for ::std::collections::HashMap<K, V> {
     fn merge_from(&mut self, other: &Self) {
         for (k, v) in other.iter() {
             self.entry(k.clone())
@@ -99,7 +141,6 @@ impl<K: Eq + Hash+ Clone, V: MergeFrom + Clone> MergeFrom for ::std::collections
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -127,14 +168,13 @@ mod tests {
         b: String,
     }
 
-
     #[derive(MergeFrom, Debug, PartialEq)]
+
     struct Maps {
         a: BTreeMap<String, f64>,
         #[cfg(feature = "std")]
         b: std::collections::HashMap<String, f64>,
     }
-
 
     #[test]
     fn test_merge() {
@@ -181,6 +221,10 @@ mod tests {
 
     #[test]
     fn test_vec_str() {
+        let mut v1 = vec![1, 2, 3];
+        let v2 = [3, 2, 1];
+        v1.merge_from(&v2);
+        println!("{:?}", &v1);
         let mut base = VecStr {
             a: vec![1],
             b: String::from("Hello, "),
@@ -197,6 +241,4 @@ mod tests {
         base.merge_from(&new);
         assert_eq!(base, expected)
     }
-
-
 }
