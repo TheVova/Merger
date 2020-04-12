@@ -9,5 +9,5 @@ The behaviour currently mimics that of protobuf's MergeFrom:
 - Add support for specifying custom merge function (for example if you'd like `Vec` to also replace).
 - Add support for ignoring fields (useful if you have fields that should only be set explicitly).
 
-##Contributing
+## Contributing
 Yes please. 
