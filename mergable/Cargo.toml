@@ -6,3 +6,7 @@ edition = "2018"
 
 [dependencies]
 merge_derive = {path = "../merge_derive"}
+
+[features]
+default = ["std"]
+std = []
