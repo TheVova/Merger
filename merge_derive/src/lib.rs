@@ -55,7 +55,43 @@ fn make_merge(data: &Data) -> TokenStream {
             }
             Fields::Unit => quote! { () },
         },
-        Data::Enum(_) => { unimplemented!() }
+        Data::Enum(data) => {
+            let variant_matches = data.variants.iter().map(|variants : &syn::Variant| {
+                let vname = &variants.ident;
+                let field_matches = match &variants.fields {
+                Fields::Unnamed(syn::FieldsUnnamed{unnamed: x, ..}) => {
+                    let samefields : syn::Arm = parse_quote! {
+                        Self::#vname(inner) => match other {
+                            Self::#vname(y) => MergeFrom::merge_from(inner,y),
+                            _ => *self = other.clone()
+                        }
+                    };
+                    quote! {
+                        #samefields
+                    }
+
+                },
+                Fields::Unit => {
+                    //Variants without any fields, so like Foo::A.
+                    let samefields : syn::Arm = parse_quote! {
+                        Self::#vname => match other {
+                            Self::#vname => (),
+                            _ => *self = other.clone()
+                        }
+                    };
+                    quote! {
+                        #samefields
+                    }
+                },
+                Fields::Named(_) => unimplemented!(),
+            };
+            quote! { #field_matches }
+            });
+            quote! {
+                match self{
+                #(#variant_matches,)*
+            }; }
+        },
         Data::Union(_) => { unimplemented!() }
     }
 }
